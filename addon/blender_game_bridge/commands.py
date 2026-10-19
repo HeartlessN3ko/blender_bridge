@@ -282,6 +282,63 @@ def cmd_camera(msg):
     return {"view_location": [round(v, 3) for v in r3d.view_location], "distance": round(r3d.view_distance, 3)}
 
 
+def cmd_pan(msg):
+    """Slide the viewport in screen space. right/up/forward are multiples of ARROW_PAN percent of view distance."""
+    _, area, _, space = _view3d()
+    if not space:
+        raise RuntimeError("no 3D viewport open")
+    r3d = space.region_3d
+    right, up, fwd = _view_axes()
+    step = r3d.view_distance * T.ARROW_PAN / 100.0
+    r3d.view_location += (right * _f(msg, "right") + up * _f(msg, "up") + fwd * _f(msg, "forward")) * step
+    area.tag_redraw()
+    return [round(v, 3) for v in r3d.view_location]
+
+
+ARROW_VEC = {"left": (-1, 0), "right": (1, 0), "up": (0, 1), "down": (0, -1)}
+
+
+def cmd_arrow(msg):
+    """Tool-aware arrow key. dir: left/right/up/down. ctrl/alt flags.
+    No modifier         -> camera pan (shift: forward/back on up/down)
+    Ctrl, Move tool     -> nudge in the view plane (alt: nudge world Z on up/down)
+    Ctrl, Rotate tool   -> left/right yaw (Z), up/down tilt (X); Alt swaps to roll (Y) on left/right
+    Ctrl, Scale tool    -> up/down grow/shrink gently; Alt + left/right stretch X, Alt + up/down stretch Z
+    Ctrl, Select tool   -> same as Move
+    """
+    d = str(msg.get("dir", "")).lower()
+    if d not in ARROW_VEC:
+        raise RuntimeError("dir must be left/right/up/down")
+    h, v = ARROW_VEC[d]
+    ctrl, alt, shift = bool(msg.get("ctrl")), bool(msg.get("alt")), bool(msg.get("shift"))
+    if not ctrl:
+        if shift:
+            return cmd_pan({"right": h, "forward": v})
+        return cmd_pan({"right": h, "up": v})
+    tool = (_current_tool() or "").rsplit(".", 1)[-1]
+    if tool == "rotate":
+        step = T.ARROW_ROTATE_STEP
+        if alt and h:
+            return cmd_rotate({"axis": "y", "degrees": h * step})
+        if h:
+            return cmd_rotate({"axis": "z", "degrees": -h * step})
+        return cmd_rotate({"axis": "x", "degrees": v * step})
+    if tool == "scale":
+        f = 1 + T.SCALE_GENTLE_STEP / 100.0
+        if alt:
+            if h:
+                return cmd_scale({"sx": f if h > 0 else 1 / f})
+            return cmd_scale({"sz": f if v > 0 else 1 / f})
+        if h:
+            return cmd_scale({"sy": f if h > 0 else 1 / f})
+        return cmd_scale({"factor": f if v > 0 else 1 / f})
+    # move / select / anything else
+    s = T.NUDGE_STEP
+    if alt and v:
+        return cmd_move({"dz": v * s})
+    return cmd_move({"dx": h * s, "dy": v * s, "space": "view"})
+
+
 def cmd_frame(msg):
     _run_in_view(lambda: bpy.ops.view3d.view_selected())
     return True

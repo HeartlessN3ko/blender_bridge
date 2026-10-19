@@ -35,6 +35,14 @@
   .log .err{color:var(--bad)}
   kbd{background:#0f1114;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px}
   small{color:var(--mut)}
+  .hotbar{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px}
+  .hotbar button{padding:10px 4px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .hotbar .ico{font-size:22px}.hotbar .key{font-size:10px;color:var(--mut)}
+  .hotbar button.on{background:var(--acc);color:#000}.hotbar button.on .key{color:#123}
+  .spring{position:relative;height:44px;background:#0f1114;border:1px solid var(--line);border-radius:22px;touch-action:none;margin:6px 0}
+  .spring .mid{position:absolute;left:50%;top:6px;bottom:6px;width:2px;background:var(--line)}
+  .spring .thumb{position:absolute;top:4px;width:36px;height:36px;border-radius:50%;background:var(--acc2);left:calc(50% - 18px)}
+  .spring .lbl{position:absolute;top:13px;font-size:12px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -47,15 +55,31 @@
   <button id="refresh">↻</button>
 </div>
 
+<div class="hotbar" id="hotbar">
+  <button class="mode" data-mode="select"><span class="ico">⬚</span>Select<span class="key">1 / Q</span></button>
+  <button class="mode" data-mode="move"><span class="ico">✥</span>Move<span class="key">2 / W</span></button>
+  <button class="mode" data-mode="rotate"><span class="ico">↻</span>Rotate<span class="key">3 / E</span></button>
+  <button class="mode" data-mode="scale"><span class="ico">⤢</span>Scale<span class="key">4 / R</span></button>
+  <button data-hot="add"><span class="ico">＋</span>Add<span class="key">5</span></button>
+  <button data-hot="duplicate"><span class="ico">⧉</span>Dupe<span class="key">6</span></button>
+  <button data-hot="frame"><span class="ico">◎</span>Frame<span class="key">7 / F</span></button>
+  <button data-hot="delete" class="warn"><span class="ico">✕</span>Delete<span class="key">8</span></button>
+</div>
+
 <div class="grid">
   <div class="card">
-    <h2>Mode <small>(W / E / R / Q)</small></h2>
-    <div class="row">
-      <button class="mode" data-mode="select">Select</button>
-      <button class="mode" data-mode="move">Move</button>
-      <button class="mode" data-mode="rotate">Rotate</button>
-      <button class="mode" data-mode="scale">Scale</button>
-    </div>
+    <h2>Keys</h2>
+    <div class="readout">arrows          pan camera
+shift+arrows    fwd/back (up/down)
+ctrl+arrows     use tool on object
+   move:        nudge in view
+   rotate:      ←→ yaw   ↑↓ tilt
+   scale:       ↑↓ grow/shrink
+ctrl+alt+arrows other axis
+   move:        ↑↓ world Z
+   rotate:      ←→ roll
+   scale:       ←→ stretch X, ↑↓ stretch Z
++ / -           gentle resize (hold)</div>
     <h2>Step</h2>
     <div class="slider"><span>m</span><input type="range" id="step" min="1" max="200" value="10"><span id="stepv">0.10</span></div>
     <div class="slider"><span>°</span><input type="range" id="rstep" min="1" max="90" value="15"><span id="rstepv">15</span></div>
@@ -68,7 +92,7 @@
   </div>
 
   <div class="card">
-    <h2>Nudge <small>(arrows + PgUp/PgDn)</small></h2>
+    <h2>Nudge</h2>
     <div class="axis"><label class="x">X</label><button data-move="dx:-1">−</button><button data-move="dx:1">+</button></div>
     <div class="axis"><label class="y">Y</label><button data-move="dy:-1">−</button><button data-move="dy:1">+</button></div>
     <div class="axis"><label class="z">Z</label><button data-move="dz:-1">−</button><button data-move="dz:1">+</button></div>
@@ -76,9 +100,13 @@
     <div class="axis"><label class="x">X</label><button data-rot="x:-1">↺</button><button data-rot="x:1">↻</button></div>
     <div class="axis"><label class="y">Y</label><button data-rot="y:-1">↺</button><button data-rot="y:1">↻</button></div>
     <div class="axis"><label class="z">Z</label><button data-rot="z:-1">↺</button><button data-rot="z:1">↻</button></div>
+    <h2>Size <small>(drag and hold, springs back)</small></h2>
+    <div class="spring" id="spring"><span class="lbl" style="left:12px">smaller</span><div class="mid"></div><div class="thumb" id="thumb"></div><span class="lbl" style="right:12px">bigger</span></div>
     <div class="row">
-      <button data-scale="0.9">Smaller</button>
-      <button data-scale="1.1">Bigger</button>
+      <button data-scale="0.9">−10%</button>
+      <button data-scale="0.98">−2%</button>
+      <button data-scale="1.02">+2%</button>
+      <button data-scale="1.1">+10%</button>
     </div>
   </div>
 
@@ -94,7 +122,7 @@
   </div>
 
   <div class="card">
-    <h2>Camera <small>(hold Shift+WASD/QE to fly, Shift+arrows to look, or drag the joystick)</small></h2>
+    <h2>Camera <small>(hold Shift+WASD/QE to fly, or drag the joystick)</small></h2>
     <div class="joy" id="joy"><div class="knob" id="knob"></div></div>
     <div class="row" style="margin-top:10px">
       <button data-cam="pitch:1">Look ↑</button>
@@ -182,6 +210,14 @@ document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => { const 
 document.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => { const [ax,s]=b.dataset.rot.split(':'); send({cmd:'rotate', axis:ax, degrees:s*stepR()}); });
 document.querySelectorAll('[data-scale]').forEach(b => b.onclick = () => send({cmd:'scale', factor:+b.dataset.scale}));
 document.querySelectorAll('[data-cam]').forEach(b => { const [k,s]=b.dataset.cam.split(':'); const go=()=>send({cmd:'camera',[k]:+s}); b.onpointerdown=()=>{go(); b._t=setInterval(go,60);} ; b.onpointerup=b.onpointerleave=()=>clearInterval(b._t); });
+document.querySelectorAll('[data-hot]').forEach(b => b.onclick = () => send(b.dataset.hot === 'add' ? {cmd:'add', type:$('#prim').value} : {cmd:b.dataset.hot}));
+// spring scale: displacement from center = scale rate, released = stop
+const spring = $('#spring'), thumb = $('#thumb'); let springV = 0;
+spring.onpointerdown = e => { spring.setPointerCapture(e.pointerId); springMove(e); };
+spring.onpointermove = e => springV !== null && e.buttons && springMove(e);
+spring.onpointerup = spring.onpointercancel = () => { springV = 0; thumb.style.left = 'calc(50% - 18px)'; };
+function springMove(e){ const r = spring.getBoundingClientRect(); const half = r.width/2 - 22; let x = Math.max(-half, Math.min(half, e.clientX - r.left - r.width/2)); springV = x/half; thumb.style.left = (r.width/2 - 18 + x) + 'px'; }
+setInterval(() => { if (springV && ws && ws.readyState === 1) send({cmd:'scale', factor: 1 + springV * 0.03}); }, 80);
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => send({cmd:'view_axis', axis:b.dataset.view}));
 
 let dragging = false, dragTimer = null;
@@ -205,21 +241,23 @@ joy.onpointermove = e => joyActive && joyMove(e);
 joy.onpointerup = joy.onpointercancel = () => { joyActive = false; joyVec=[0,0]; setKnob(0,0); };
 function joyMove(e){ const r = joy.getBoundingClientRect(); let x=(e.clientX-r.left-90)/60, y=(e.clientY-r.top-90)/60; const m=Math.hypot(x,y); if(m>1){x/=m;y/=m;} joyVec=[x,y]; setKnob(x,y); }
 
-// ---- keyboard: WASD camera, arrows nudge, WER modes ----
-const camKeys = {w:['forward',1], s:['forward',-1], a:['right',-1], d:['right',1], q:['up',-1], e:['up',1], arrowleft:['yaw',-1], arrowright:['yaw',1], arrowup:['pitch',1], arrowdown:['pitch',-1]};
+// ---- keyboard: WASD camera, arrows per the scheme above, hotbar 1-8, WERQ modes ----
+const camKeys = {w:['forward',1], s:['forward',-1], a:['right',-1], d:['right',1], q:['up',-1], e:['up',1]};
+const hot = {'1':'select','2':'move','3':'rotate','4':'scale','5':'add','6':'duplicate','7':'frame','8':'delete'};
 document.addEventListener('keydown', ev => {
   if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
   const k = ev.key.toLowerCase();
+  if (k.startsWith('arrow')) { ev.preventDefault(); return send({cmd:'arrow', dir:k.slice(5), ctrl:ev.ctrlKey||ev.metaKey, alt:ev.altKey, shift:ev.shiftKey}); }
   if (ev.shiftKey && k in camKeys) { keys.add(k); ev.preventDefault(); return; }
+  if (k === '=' || k === '+') return send({cmd:'scale', factor:1.02});
+  if (k === '-' || k === '_') return send({cmd:'scale', factor:1/1.02});
+  if (k in hot) { const h = hot[k]; if (['select','move','rotate','scale'].includes(h)) return send({cmd:'set_mode', mode:h}); return send(h === 'add' ? {cmd:'add', type:$('#prim').value} : {cmd:h}); }
   if (k === 'w') return send({cmd:'set_mode', mode:'move'});
   if (k === 'e') return send({cmd:'set_mode', mode:'rotate'});
   if (k === 'r') return send({cmd:'set_mode', mode:'scale'});
   if (k === 'q') return send({cmd:'set_mode', mode:'select'});
   if (k === 'f') return send({cmd:'frame'});
   if (k === 'z' && (ev.ctrlKey||ev.metaKey)) return send({cmd: ev.shiftKey ? 'redo' : 'undo'});
-  const s = stepM();
-  const nudge = {arrowleft:{dx:-s}, arrowright:{dx:s}, arrowup:{dy:s}, arrowdown:{dy:-s}, pageup:{dz:s}, pagedown:{dz:-s}}[k];
-  if (nudge) { ev.preventDefault(); return send({cmd:'move', ...nudge}); }
   if (k === 'delete' || k === 'backspace') return send({cmd:'delete'});
 });
 document.addEventListener('keyup', ev => keys.delete(ev.key.toLowerCase()));

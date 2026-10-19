@@ -21,12 +21,34 @@ Hotkeys in Object mode (edit `tunables.py` to change):
 | Q / W / E / R | Select / Move / Rotate / Scale tool |
 | F | Walk/fly navigation (WASD + mouse look, Esc to exit) |
 | Z | Frame selected |
+| + / - (hold) | Gentle grow/shrink, 2% per tick |
+
+### Arrow scheme (Blender and the browser controller, same keys)
+
+| Keys | Does |
+|---|---|
+| Arrows | Pan the camera left/right/up/down |
+| Shift + Up/Down | Camera forward/back |
+| Ctrl + arrows | Use the active tool on the selected object |
+| Ctrl + Alt + arrows | Same tool, the other axis |
+
+What Ctrl + arrows does per tool:
+
+| Tool | Ctrl | Ctrl + Alt |
+|---|---|---|
+| Move / Select | Nudge in the view plane | Up/Down: nudge world Z |
+| Rotate | Left/Right: yaw (Z). Up/Down: tilt (X) | Left/Right: roll (Y) |
+| Scale | Up/Down: grow/shrink. Left/Right: stretch Y | Left/Right: stretch X. Up/Down: stretch Z |
+
+Steps live in tunables: `ARROW_PAN`, `ARROW_ROTATE_STEP`, `SCALE_GENTLE_STEP`, `NUDGE_STEP`.
 
 ## Browser controller
 
 Open `controller/controller.html` in any browser. It connects to `ws://127.0.0.1:8765`.
-Pick an object from the dropdown, tap nudge/rotate/scale buttons, drag dimension and
-position sliders, drag the joystick or hold Shift+WASD to fly the viewport.
+Hotbar across the top: 1-8 keys for Select, Move, Rotate, Scale, Add, Dupe, Frame, Delete.
+Size control is a spring slider: drag away from center to grow or shrink at a rate, let go to stop.
+Arrows follow the scheme above. Pick an object from the dropdown, drag dimension and position
+sliders, drag the joystick or hold Shift+WASD to fly the viewport.
 Readout updates after every command. Works on a phone on the same LAN if you set
 `HOST` in tunables to `0.0.0.0` (then it's open to your network; your call).
 
@@ -73,6 +95,8 @@ Raw clients send newline-delimited JSON; browsers use WebSocket text frames. Sam
 | `scale` | `factor` or `sx sy sz` |
 | `snap` | `on` (omit to toggle) |
 | `camera` | `forward right up yaw pitch zoom` (units scaled by tunables) |
+| `pan` | `right up forward` in ARROW_PAN units |
+| `arrow` | `dir` left/right/up/down, `ctrl`, `alt`, `shift` (tool-aware, see Arrow scheme) |
 | `frame`, `fly`, `undo`, `redo`, `delete`, `duplicate` | |
 | `view_axis` | `axis`: TOP, FRONT, RIGHT, ... |
 | `add` | `type` cube/sphere/cylinder/cone/plane/torus/monkey, `name`, `x y z` |

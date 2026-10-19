@@ -18,6 +18,9 @@ PUSH_STATE_AFTER_COMMAND = 1  # 0/1. Send selection/transform readout after ever
 NUDGE_STEP = 0.1            # float, meters. Panel nudge buttons and default move delta.
 ROTATE_STEP = 15            # 1-180 degrees. Panel rotate buttons.
 SCALE_STEP = 10             # 1-100 percent. Panel scale buttons.
+SCALE_GENTLE_STEP = 2       # 1-20 percent. Hold +/- keys for a slow, smooth resize.
+ARROW_ROTATE_STEP = 5       # 1-90 degrees per arrow press in Rotate mode (Ctrl/Alt + arrows).
+ARROW_PAN = 8               # 1-50 percent of view distance per arrow press (camera pan).
 SNAP_INCREMENT = 0.25       # float, meters. Grid increment when snap is on.
 SNAP_ANGLE = 15             # 1-90 degrees. Rotation increment when snap is on.
 
@@ -34,6 +37,12 @@ KEY_SCALE = "R"             # Tool: scale
 KEY_SELECT = "Q"            # Tool: select box
 KEY_FLY = "F"               # Toggle walk/fly navigation (WASD + mouse look)
 KEY_FRAME = "Z"             # Frame selected object
+KEY_BIGGER = "EQUAL"        # Hold for gentle grow (also NUMPAD_PLUS)
+KEY_SMALLER = "MINUS"       # Hold for gentle shrink (also NUMPAD_MINUS)
+# Arrow keys are always bound:
+#   plain        pan the camera left/right/up/down, Ctrl+Shift up/down = forward/back
+#   Ctrl         act on the selected object using the active tool (see README "Arrow scheme")
+#   Alt          the "other axis" variant of the same tool
 
 # ---- Panel ---------------------------------------------------------------
 PANEL_CATEGORY = "Game Bridge"  # N-panel tab name.

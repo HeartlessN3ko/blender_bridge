@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Game Bridge",
     "author": "Skye",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (3, 3, 0),
     "location": "View3D > Sidebar > Game Bridge",
     "description": "Game-style transform controls, W/E/R hotkeys, and a socket API for external controllers.",
@@ -100,6 +100,37 @@ class GB_OT_tool(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class GB_OT_arrow(bpy.types.Operator):
+    """Arrow key: pan camera, or Ctrl/Alt to act on the selection with the active tool"""
+    bl_idname = "gamebridge.arrow"
+    bl_label = "Bridge Arrow"
+    bl_options = {"REGISTER", "UNDO"}
+    dir: bpy.props.StringProperty()
+    ctrl: bpy.props.BoolProperty(default=False)
+    alt: bpy.props.BoolProperty(default=False)
+    shift: bpy.props.BoolProperty(default=False)
+
+    def execute(self, context):
+        reply = commands.handle({"cmd": "arrow", "dir": self.dir, "ctrl": self.ctrl, "alt": self.alt, "shift": self.shift})
+        if not reply.get("ok"):
+            self.report({"WARNING"}, reply.get("error", "failed"))
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+class GB_OT_gentle_scale(bpy.types.Operator):
+    """Hold to grow or shrink the selection a few percent per tick"""
+    bl_idname = "gamebridge.gentle_scale"
+    bl_label = "Gentle Scale"
+    bl_options = {"REGISTER", "UNDO"}
+    grow: bpy.props.BoolProperty(default=True)
+
+    def execute(self, context):
+        f = 1 + T.SCALE_GENTLE_STEP / 100.0
+        reply = commands.handle({"cmd": "scale", "factor": f if self.grow else 1 / f})
+        return {"FINISHED"} if reply.get("ok") else {"CANCELLED"}
+
+
 # ---- panel -----------------------------------------------------------------
 def _btn(row, label, cmd, icon="NONE", **args):
     import json
@@ -153,9 +184,14 @@ class GB_PT_panel(bpy.types.Panel):
 
         box = L.box()
         f = 1 + T.SCALE_STEP / 100.0
+        g = 1 + T.SCALE_GENTLE_STEP / 100.0
         row = box.row(align=True)
-        _btn(row, f"Smaller {T.SCALE_STEP}%", "scale", factor=1 / f)
-        _btn(row, f"Bigger {T.SCALE_STEP}%", "scale", factor=f)
+        _btn(row, f"-{T.SCALE_STEP}%", "scale", factor=1 / f)
+        _btn(row, f"-{T.SCALE_GENTLE_STEP}%", "scale", factor=1 / g)
+        _btn(row, f"+{T.SCALE_GENTLE_STEP}%", "scale", factor=g)
+        _btn(row, f"+{T.SCALE_STEP}%", "scale", factor=f)
+        box.label(text="Hold + / - keys for smooth resize", icon="INFO")
+        box.label(text="Ctrl+arrows: tool acts on object. Alt: other axis", icon="INFO")
 
         obj = context.view_layer.objects.active
         if obj and obj.select_get():
@@ -198,6 +234,16 @@ def _register_keys():
     kmi = km.keymap_items.new("gamebridge.cmd", T.KEY_FRAME, "PRESS")
     kmi.properties.cmd = "frame"
     _keymaps.append((km, kmi))
+    for key, grow in ((T.KEY_BIGGER, True), ("NUMPAD_PLUS", True), (T.KEY_SMALLER, False), ("NUMPAD_MINUS", False)):
+        kmi = km.keymap_items.new("gamebridge.gentle_scale", key, "PRESS", repeat=True)
+        kmi.properties.grow = grow
+        _keymaps.append((km, kmi))
+    for arrow in ("LEFT", "RIGHT", "UP", "DOWN"):
+        for ctrl, alt, shift in ((0, 0, 0), (0, 0, 1), (1, 0, 0), (1, 1, 0)):
+            kmi = km.keymap_items.new("gamebridge.arrow", f"{arrow}_ARROW", "PRESS", ctrl=ctrl, alt=alt, shift=shift, repeat=True)
+            kmi.properties.dir = arrow.lower()
+            kmi.properties.ctrl, kmi.properties.alt, kmi.properties.shift = bool(ctrl), bool(alt), bool(shift)
+            _keymaps.append((km, kmi))
 
 
 def _unregister_keys():
@@ -206,7 +252,7 @@ def _unregister_keys():
     _keymaps.clear()
 
 
-CLASSES = (GB_Props, GB_OT_cmd, GB_OT_server, GB_OT_tool, GB_PT_panel)
+CLASSES = (GB_Props, GB_OT_cmd, GB_OT_server, GB_OT_tool, GB_OT_arrow, GB_OT_gentle_scale, GB_PT_panel)
 
 
 def register():
