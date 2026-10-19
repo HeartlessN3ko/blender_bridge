@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Game Bridge",
     "author": "Skye",
-    "version": (0, 2, 0),
+    "version": (0, 3, 0),
     "blender": (3, 3, 0),
     "location": "View3D > Sidebar > Game Bridge",
     "description": "Game-style transform controls, W/E/R hotkeys, and a socket API for external controllers.",
@@ -12,9 +12,9 @@ import importlib
 
 import bpy
 
-from . import commands, server, tunables
+from . import commands, macros, server, tunables
 
-for m in (tunables, server, commands):
+for m in (tunables, macros, server, commands):
     importlib.reload(m)
 
 T = tunables
@@ -192,6 +192,45 @@ class GB_PT_panel(bpy.types.Panel):
         _btn(row, f"+{T.SCALE_STEP}%", "scale", factor=f)
         box.label(text="Hold + / - keys for smooth resize", icon="INFO")
         box.label(text="Ctrl+arrows: tool acts on object. Alt: other axis", icon="INFO")
+
+        box = L.box()
+        box.label(text="Pick many", icon="RESTRICT_SELECT_OFF")
+        row = box.row(align=True)
+        _btn(row, "Same name", "select_group", by="prefix")
+        _btn(row, "Same group", "select_group", by="collection")
+        _btn(row, "Same kind", "select_group", by="type")
+        _btn(row, "All", "select_group", by="all")
+
+        box = L.box()
+        box.label(text="Do to selection", icon="PLAY")
+        col = box.column(align=True)
+        col.scale_y = 1.25
+        row = col.row(align=True)
+        _btn(row, "Clone to other side", "mirror", "MOD_MIRROR", axis="x", clone=True)
+        row = col.row(align=True)
+        _btn(row, "Mirror L/R", "mirror", axis="x")
+        _btn(row, "Mirror F/B", "mirror", axis="y")
+        row = col.row(align=True)
+        _btn(row, "Flip upside down", "flip", which="upside_down")
+        _btn(row, "Turn around", "flip", which="around")
+        row = col.row(align=True)
+        _btn(row, "Drop to floor", "drop_to_floor", "TRIA_DOWN_BAR")
+        _btn(row, "Center on cursor", "center", "PIVOT_CURSOR")
+        row = col.row(align=True)
+        _btn(row, "Copy", "copy", "COPYDOWN")
+        _btn(row, "Paste", "paste", "PASTEDOWN")
+        _btn(row, "Group", "group", "OUTLINER_OB_GROUP_INSTANCE")
+        _btn(row, "Ungroup", "ungroup")
+        box.label(text="Mirror pivots on the 3D cursor", icon="INFO")
+
+        box = L.box()
+        box.label(text="Macros (edit macros.py)", icon="SCRIPT")
+        col = box.column(align=True)
+        items = list(macros.MACROS.items())
+        for i in range(0, len(items), 2):
+            row = col.row(align=True)
+            for key, m in items[i:i + 2]:
+                _btn(row, m["label"], "macro", name=key)
 
         obj = context.view_layer.objects.active
         if obj and obj.select_get():

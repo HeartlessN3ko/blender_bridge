@@ -17,6 +17,8 @@
   button:active{background:var(--acc);color:#000}
   button.mode.on{background:var(--acc);color:#000;border-color:var(--acc)}
   button.warn:active{background:var(--acc2)}
+  button.big{padding:18px;font-size:18px;background:#243049;border-color:var(--acc)}
+  details summary{cursor:pointer;margin:8px 0}
   .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
   .card h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px}
@@ -51,8 +53,6 @@
   <span class="dot" id="dot"></span>
   <input id="url" value="ws://127.0.0.1:8765" size="22">
   <button id="connect">Connect</button>
-  <select id="objects"></select>
-  <button id="refresh">↻</button>
 </div>
 
 <div class="hotbar" id="hotbar">
@@ -68,38 +68,67 @@
 
 <div class="grid">
   <div class="card">
-    <h2>Keys</h2>
-    <div class="readout">arrows          pan camera
-shift+arrows    fwd/back (up/down)
-ctrl+arrows     use tool on object
-   move:        nudge in view
-   rotate:      ←→ yaw   ↑↓ tilt
-   scale:       ↑↓ grow/shrink
-ctrl+alt+arrows other axis
-   move:        ↑↓ world Z
-   rotate:      ←→ roll
-   scale:       ←→ stretch X, ↑↓ stretch Z
-+ / -           gentle resize (hold)</div>
-    <h2>Step</h2>
-    <div class="slider"><span>m</span><input type="range" id="step" min="1" max="200" value="10"><span id="stepv">0.10</span></div>
-    <div class="slider"><span>°</span><input type="range" id="rstep" min="1" max="90" value="15"><span id="rstepv">15</span></div>
+    <h2>1. Pick what to work on</h2>
+    <div class="row"><select id="objects" style="flex:1"></select><button id="refresh">↻</button></div>
     <div class="row">
-      <button id="snap">Snap: off</button>
-      <button id="frame">Frame</button>
-      <button id="undo">Undo</button>
-      <button id="redo">Redo</button>
+      <button data-sel="prefix" title="Everything whose name starts like the picked one">Same name</button>
+      <button data-sel="collection" title="Everything in the same collection">Same group</button>
+      <button data-sel="type" title="Everything of the same kind (all meshes, all lights...)">Same kind</button>
+      <button data-sel="all">Everything</button>
     </div>
+    <div class="readout" id="readout">not connected</div>
   </div>
 
   <div class="card">
-    <h2>Nudge</h2>
-    <div class="axis"><label class="x">X</label><button data-move="dx:-1">−</button><button data-move="dx:1">+</button></div>
-    <div class="axis"><label class="y">Y</label><button data-move="dy:-1">−</button><button data-move="dy:1">+</button></div>
-    <div class="axis"><label class="z">Z</label><button data-move="dz:-1">−</button><button data-move="dz:1">+</button></div>
-    <h2>Rotate</h2>
-    <div class="axis"><label class="x">X</label><button data-rot="x:-1">↺</button><button data-rot="x:1">↻</button></div>
-    <div class="axis"><label class="y">Y</label><button data-rot="y:-1">↺</button><button data-rot="y:1">↻</button></div>
-    <div class="axis"><label class="z">Z</label><button data-rot="z:-1">↺</button><button data-rot="z:1">↻</button></div>
+    <h2>2. Do something to it</h2>
+    <div class="row"><button class="big" data-act='{"cmd":"mirror","axis":"x","clone":true}' title="Duplicate and mirror across the 3D cursor on X">⧉ Clone to other side</button></div>
+    <div class="row">
+      <button data-act='{"cmd":"mirror","axis":"x"}'>Mirror left/right</button>
+      <button data-act='{"cmd":"mirror","axis":"y"}'>Mirror front/back</button>
+    </div>
+    <div class="row">
+      <button data-act='{"cmd":"flip","which":"upside_down"}'>Flip upside down</button>
+      <button data-act='{"cmd":"flip","which":"around"}'>Turn around</button>
+    </div>
+    <div class="row">
+      <button data-act='{"cmd":"drop_to_floor"}'>Drop to floor</button>
+      <button data-act='{"cmd":"center"}'>Center on cursor</button>
+    </div>
+    <div class="row">
+      <button data-act='{"cmd":"copy"}'>Copy</button>
+      <button data-act='{"cmd":"paste"}'>Paste</button>
+      <button data-act='{"cmd":"group"}' title="Parent under one handle so it moves as one thing">Group</button>
+      <button data-act='{"cmd":"ungroup"}'>Ungroup</button>
+    </div>
+    <small>Mirror and Center use the 3D cursor as the pivot. Shift+right-click in Blender to place it.</small>
+  </div>
+
+  <div class="card">
+    <h2>Macros <small>(edit macros.py to add your own)</small></h2>
+    <div class="row" id="macros"><small>connect to load</small></div>
+  </div>
+
+  <div class="card">
+    <h2>Move <small>(step <span id="stepv">0.10</span> m)</small></h2>
+    <input type="range" id="step" min="1" max="200" value="10" style="width:100%">
+    <div class="axis"><label class="x">X</label><button data-move="dx:-1">← left</button><button data-move="dx:1">right →</button></div>
+    <div class="axis"><label class="y">Y</label><button data-move="dy:-1">↓ back</button><button data-move="dy:1">forward ↑</button></div>
+    <div class="axis"><label class="z">Z</label><button data-move="dz:-1">▼ down</button><button data-move="dz:1">up ▲</button></div>
+    <h2>Position (m)</h2>
+    <div class="slider"><span class="x">X</span><input type="range" id="locx" min="-10" max="10" step="0.05"><input id="locxv" type="number" step="0.05"></div>
+    <div class="slider"><span class="y">Y</span><input type="range" id="locy" min="-10" max="10" step="0.05"><input id="locyv" type="number" step="0.05"></div>
+    <div class="slider"><span class="z">Z</span><input type="range" id="locz" min="-10" max="10" step="0.05"><input id="loczv" type="number" step="0.05"></div>
+  </div>
+
+  <div class="card">
+    <h2>Rotate <small>(<span id="rstepv">15</span>° per tap)</small></h2>
+    <input type="range" id="rstep" min="1" max="90" value="15" style="width:100%">
+    <div class="axis"><label>spin</label><button data-rot="z:1">↺ left</button><button data-rot="z:-1">right ↻</button></div>
+    <div class="axis"><label>tilt</label><button data-rot="x:-1">↓ forward</button><button data-rot="x:1">back ↑</button></div>
+    <div class="axis"><label>roll</label><button data-rot="y:-1">↶ left</button><button data-rot="y:1">right ↷</button></div>
+  </div>
+
+  <div class="card">
     <h2>Size <small>(drag and hold, springs back)</small></h2>
     <div class="spring" id="spring"><span class="lbl" style="left:12px">smaller</span><div class="mid"></div><div class="thumb" id="thumb"></div><span class="lbl" style="right:12px">bigger</span></div>
     <div class="row">
@@ -108,21 +137,14 @@ ctrl+alt+arrows other axis
       <button data-scale="1.02">+2%</button>
       <button data-scale="1.1">+10%</button>
     </div>
+    <h2>Exact size (m)</h2>
+    <div class="slider"><span class="x">W</span><input type="range" id="dimx" min="0.05" max="10" step="0.05"><input id="dimxv" type="number" step="0.05"></div>
+    <div class="slider"><span class="y">D</span><input type="range" id="dimy" min="0.05" max="10" step="0.05"><input id="dimyv" type="number" step="0.05"></div>
+    <div class="slider"><span class="z">H</span><input type="range" id="dimz" min="0.05" max="10" step="0.05"><input id="dimzv" type="number" step="0.05"></div>
   </div>
 
   <div class="card">
-    <h2>Dimensions (m)</h2>
-    <div class="slider"><span class="x">X</span><input type="range" id="dimx" min="0.05" max="10" step="0.05"><input id="dimxv" type="number" step="0.05"></div>
-    <div class="slider"><span class="y">Y</span><input type="range" id="dimy" min="0.05" max="10" step="0.05"><input id="dimyv" type="number" step="0.05"></div>
-    <div class="slider"><span class="z">Z</span><input type="range" id="dimz" min="0.05" max="10" step="0.05"><input id="dimzv" type="number" step="0.05"></div>
-    <h2>Position (m)</h2>
-    <div class="slider"><span class="x">X</span><input type="range" id="locx" min="-10" max="10" step="0.05"><input id="locxv" type="number" step="0.05"></div>
-    <div class="slider"><span class="y">Y</span><input type="range" id="locy" min="-10" max="10" step="0.05"><input id="locyv" type="number" step="0.05"></div>
-    <div class="slider"><span class="z">Z</span><input type="range" id="locz" min="-10" max="10" step="0.05"><input id="loczv" type="number" step="0.05"></div>
-  </div>
-
-  <div class="card">
-    <h2>Camera <small>(hold Shift+WASD/QE to fly, or drag the joystick)</small></h2>
+    <h2>Camera <small>(drag joystick, or hold Shift+WASD)</small></h2>
     <div class="joy" id="joy"><div class="knob" id="knob"></div></div>
     <div class="row" style="margin-top:10px">
       <button data-cam="pitch:1">Look ↑</button>
@@ -137,20 +159,32 @@ ctrl+alt+arrows other axis
       <button data-cam="zoom:-1">Zoom −</button>
     </div>
     <div class="row">
-      <button data-view="TOP">Top</button><button data-view="FRONT">Front</button><button data-view="RIGHT">Right</button>
+      <button data-view="TOP">Top</button><button data-view="FRONT">Front</button><button data-view="RIGHT">Side</button><button id="frame">Fit</button>
     </div>
   </div>
 
   <div class="card">
-    <h2>Add / Edit</h2>
+    <h2>Add &amp; housekeeping</h2>
     <div class="row">
       <select id="prim"><option>cube</option><option>sphere</option><option>cylinder</option><option>cone</option><option>plane</option><option>torus</option><option>monkey</option></select>
       <button id="add">Add</button>
       <button id="dup">Duplicate</button>
       <button id="del" class="warn">Delete</button>
     </div>
-    <h2>Readout</h2>
-    <div class="readout" id="readout">not connected</div>
+    <div class="row">
+      <button id="snap">Snap: off</button>
+      <button id="undo">Undo</button>
+      <button id="redo">Redo</button>
+    </div>
+    <details><summary><small>Keyboard cheat sheet</small></summary>
+    <div class="readout">1-8             hotbar
+Q W E R         select / move / rotate / scale
+arrows          pan camera
+shift+arrows    fwd/back (up/down)
+ctrl+arrows     use tool on object
+ctrl+alt+arrows other axis
++ / -           gentle resize (hold)
+ctrl+z / ctrl+shift+z   undo / redo</div></details>
     <h2>Log</h2>
     <div class="log" id="log"></div>
   </div>
@@ -167,12 +201,13 @@ function log(msg, err){ const d=document.createElement('div'); if(err) d.classNa
 function connect(){
   if (ws) { ws.close(); ws = null; }
   try { ws = new WebSocket($('#url').value); } catch(e){ log('bad url '+e, true); return; }
-  ws.onopen = () => { $('#dot').classList.add('on'); log('connected'); send({cmd:'state'}); };
+  ws.onopen = () => { $('#dot').classList.add('on'); log('connected'); send({cmd:'state'}); send({cmd:'list_macros'}); };
   ws.onclose = () => { $('#dot').classList.remove('on'); log('disconnected'); };
   ws.onerror = () => log('socket error (is Blender running with the add-on?)', true);
   ws.onmessage = ev => {
     const r = JSON.parse(ev.data);
     if (!r.ok) log('ERR ' + r.cmd + ': ' + r.error, true);
+    if (r.ok && r.cmd === 'list_macros') renderMacros(r.result);
     const st = r.state || (r.cmd === 'state' ? r.result : null);
     if (st) applyState(st);
   };
@@ -210,6 +245,9 @@ document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => { const 
 document.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => { const [ax,s]=b.dataset.rot.split(':'); send({cmd:'rotate', axis:ax, degrees:s*stepR()}); });
 document.querySelectorAll('[data-scale]').forEach(b => b.onclick = () => send({cmd:'scale', factor:+b.dataset.scale}));
 document.querySelectorAll('[data-cam]').forEach(b => { const [k,s]=b.dataset.cam.split(':'); const go=()=>send({cmd:'camera',[k]:+s}); b.onpointerdown=()=>{go(); b._t=setInterval(go,60);} ; b.onpointerup=b.onpointerleave=()=>clearInterval(b._t); });
+document.querySelectorAll('[data-sel]').forEach(b => b.onclick = () => send({cmd:'select_group', by:b.dataset.sel}));
+document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => send(JSON.parse(b.dataset.act)));
+function renderMacros(list){ $('#macros').innerHTML = list.map(m => `<button title="${m.hint}" data-macro="${m.id}">${m.label}</button>`).join('') || '<small>no macros</small>'; document.querySelectorAll('[data-macro]').forEach(b => b.onclick = () => send({cmd:'macro', name:b.dataset.macro})); }
 document.querySelectorAll('[data-hot]').forEach(b => b.onclick = () => send(b.dataset.hot === 'add' ? {cmd:'add', type:$('#prim').value} : {cmd:b.dataset.hot}));
 // spring scale: displacement from center = scale rate, released = stop
 const spring = $('#spring'), thumb = $('#thumb'); let springV = 0;

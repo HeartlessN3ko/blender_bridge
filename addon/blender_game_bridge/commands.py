@@ -7,6 +7,7 @@ import math
 import bpy
 from mathutils import Matrix, Vector
 
+from . import macros as M
 from . import tunables as T
 
 TOOL_IDS = {
@@ -398,6 +399,187 @@ def cmd_add(msg):
     if msg.get("name"):
         obj.name = msg["name"]
     return object_state(obj)
+
+
+# ---- one-click actions -----------------------------------------------------
+def _pivot(msg):
+    p = msg.get("pivot", "cursor")
+    if p == "origin":
+        return Vector((0, 0, 0))
+    if p == "cursor":
+        return bpy.context.scene.cursor.location.copy()
+    if p == "active":
+        return _active().location.copy()
+    sel = _selected()
+    return sum((o.location for o in sel), Vector()) / len(sel)
+
+
+def cmd_mirror(msg):
+    """Mirror selection across an axis about a pivot (cursor, origin, active, center). clone=true keeps the original."""
+    axis = str(msg.get("axis", "x")).lower()
+    i = "xyz".index(axis)
+    pivot = _pivot(msg)
+    if msg.get("clone"):
+        _run_in_view(lambda: bpy.ops.object.duplicate())
+    for obj in _selected():
+        loc = obj.location.copy()
+        loc[i] = 2 * pivot[i] - loc[i]
+        obj.location = loc
+        sc = obj.scale.copy()
+        sc[i] = -sc[i]
+        obj.scale = sc
+        rot = list(obj.rotation_euler)
+        for j in range(3):
+            if j != i:
+                rot[j] = -rot[j]
+        obj.rotation_euler = rot
+    return object_state(_active())
+
+
+def cmd_flip(msg):
+    """Flip 180 degrees. which: upside_down (X), left_right (Y), around (Z)."""
+    which = msg.get("which", "upside_down")
+    axis = {"upside_down": "x", "left_right": "y", "around": "z"}.get(which, which)
+    return cmd_rotate({"axis": axis, "degrees": 180})
+
+
+def cmd_drop_to_floor(msg):
+    """Move selection down (or up) so its lowest point sits on z=0."""
+    for obj in _selected():
+        zs = [(obj.matrix_world @ Vector(c)).z for c in obj.bound_box]
+        obj.location.z -= min(zs)
+    return object_state(_active())
+
+
+def cmd_center(msg):
+    """Center selection on the 3D cursor, or world origin with pivot=origin. Keeps Z unless z=true."""
+    p = _pivot({"pivot": msg.get("pivot", "cursor")})
+    sel = _selected()
+    mid = sum((o.location for o in sel), Vector()) / len(sel)
+    d = p - mid
+    if not msg.get("z"):
+        d.z = 0
+    for obj in sel:
+        obj.location += d
+    return object_state(_active())
+
+
+def cmd_copy(msg):
+    _run_in_view(lambda: bpy.ops.view3d.copybuffer())
+    return [o.name for o in _selected()]
+
+
+def cmd_paste(msg):
+    _run_in_view(lambda: bpy.ops.view3d.pastebuffer())
+    return [o.name for o in bpy.context.selected_objects]
+
+
+def cmd_apply(msg):
+    _run_in_view(lambda: bpy.ops.object.transform_apply(location=False, rotation=True, scale=True))
+    return object_state(_active())
+
+
+def cmd_group(msg):
+    """Parent the selection under a new Empty so it moves as one thing. name optional."""
+    sel = _selected()
+    mid = sum((o.location for o in sel), Vector()) / len(sel)
+    empty = bpy.data.objects.new(msg.get("name") or "Group", None)
+    empty.empty_display_type = "CUBE"
+    empty.location = mid
+    bpy.context.scene.collection.objects.link(empty)
+    for o in sel:
+        o.parent = empty
+        o.matrix_parent_inverse = empty.matrix_world.inverted()
+        o.select_set(False)
+    empty.select_set(True)
+    bpy.context.view_layer.objects.active = empty
+    return object_state(empty)
+
+
+def cmd_ungroup(msg):
+    obj = _active()
+    kids = [c for c in obj.children]
+    for c in kids:
+        mw = c.matrix_world.copy()
+        c.parent = None
+        c.matrix_world = mw
+        c.select_set(True)
+    if obj.type == "EMPTY" and msg.get("delete_empty", True):
+        bpy.data.objects.remove(obj)
+    return [c.name for c in kids]
+
+
+def cmd_select_group(msg):
+    """Select many at once. by: prefix (name starts with), collection, type, children (of active), all."""
+    by = msg.get("by", "prefix")
+    val = msg.get("value")
+    act = bpy.context.view_layer.objects.active
+    scene = bpy.context.scene.objects
+    if by == "prefix":
+        val = val if val is not None else (act.name.rstrip("0123456789.") if act else "")
+        picks = [o for o in scene if o.name.startswith(val)]
+    elif by == "collection":
+        colls = [bpy.data.collections.get(val)] if val else (act.users_collection if act else [])
+        picks = [o for c in colls if c for o in c.all_objects]
+    elif by == "type":
+        val = val or (act.type if act else "MESH")
+        picks = [o for o in scene if o.type == val]
+    elif by == "children":
+        picks = [act] + list(act.children_recursive) if act else []
+    elif by == "all":
+        picks = list(scene)
+    else:
+        raise RuntimeError("by must be prefix/collection/type/children/all")
+    if not msg.get("extend"):
+        for o in bpy.context.selected_objects:
+            o.select_set(False)
+    for o in picks:
+        o.select_set(True)
+    if picks and not (act and act in picks):
+        bpy.context.view_layer.objects.active = picks[0]
+    return [o.name for o in picks]
+
+
+# ---- macros ----------------------------------------------------------------
+def _macro_vars():
+    try:
+        d = _active().dimensions
+        return {"$width": d.x, "$depth": d.y, "$height": d.z, "$step": T.NUDGE_STEP}
+    except RuntimeError:
+        return {"$step": T.NUDGE_STEP}
+
+
+def cmd_list_macros(msg):
+    importlib_reload_macros()
+    return [{"id": k, "label": v["label"], "hint": v.get("hint", "")} for k, v in M.MACROS.items()]
+
+
+def importlib_reload_macros():
+    import importlib
+    importlib.reload(M)
+
+
+def cmd_macro(msg):
+    """Run a named macro from macros.py, or an inline list: steps=[{cmd...}, ...]."""
+    steps = msg.get("steps")
+    if steps is None:
+        importlib_reload_macros()
+        name = msg.get("name")
+        if name not in M.MACROS:
+            raise RuntimeError(f"no macro {name!r}; known: {sorted(M.MACROS)}")
+        steps = M.MACROS[name]["steps"]
+    out = []
+    for step in steps:
+        step = dict(step)
+        vars_ = _macro_vars()
+        for k, v in step.items():
+            if isinstance(v, str) and v in vars_:
+                step[k] = vars_[v]
+        fn = COMMANDS.get(step.get("cmd"))
+        if fn is None:
+            raise RuntimeError(f"macro step has unknown cmd {step.get('cmd')!r}")
+        out.append(fn(step))
+    return out[-1] if out else None
 
 
 def cmd_rename(msg):

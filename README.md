@@ -101,6 +101,33 @@ Raw clients send newline-delimited JSON; browsers use WebSocket text frames. Sam
 | `view_axis` | `axis`: TOP, FRONT, RIGHT, ... |
 | `add` | `type` cube/sphere/cylinder/cone/plane/torus/monkey, `name`, `x y z` |
 | `rename` | `name` |
+| `select_group` | `by`: prefix / collection / type / children / all, `value`, `extend` |
+| `mirror` | `axis`, `clone` (keep original), `pivot`: cursor / origin / active / center |
+| `flip` | `which`: upside_down / left_right / around |
+| `drop_to_floor`, `center`, `copy`, `paste`, `apply`, `group`, `ungroup` | `center` takes `pivot`, `z` |
+| `list_macros` | |
+| `macro` | `name` from macros.py, or inline `steps`: [{cmd...}, ...] |
+
+## One-click actions and macros
+
+The panel and the controller both have a "Do to selection" block: clone to the other side,
+mirror, flip, drop to floor, center, copy/paste, group/ungroup. Mirror and center pivot on the
+3D cursor (Shift+right-click in Blender to place it), so "clone to other side" means
+"across the cursor."
+
+`addon/blender_game_bridge/macros.py` holds named command sequences. Each becomes a button.
+Steps can use `$width`, `$depth`, `$height` (active object's dimensions) and `$step`:
+
+```python
+"row_of_3": {
+    "label": "Row of 3",
+    "hint": "Two more copies along X",
+    "steps": [{"cmd": "duplicate"}, {"cmd": "move", "dx": "$width"},
+              {"cmd": "duplicate"}, {"cmd": "move", "dx": "$width"}],
+},
+```
+
+Edit the file, hit the controller's refresh button. No add-on reload needed for macros.
 | `save` | `path` (optional) |
 | `exec` | `code`, `eval` (set `ALLOW_EXEC = 0` in tunables to disable) |
 
