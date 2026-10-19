@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1 (2026-10-19)
+- Controller rebuilt as a game-editor HUD: tool rail (left), gamepad cluster (D-pad move, face-button rotate, left-stick camera, trigger-style size), inspector and action tiles (right), macro strip and numbered hotbar (bottom). Stacks vertically under 1000px.
+
 ## 0.3.0 (2026-10-19)
 - One-click actions: clone to other side, mirror L/R and F/B, flip upside down, turn around, drop to floor, center on cursor, copy, paste, group, ungroup, apply.
 - Pick-many: same name, same collection, same kind, children, all.

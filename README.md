@@ -45,7 +45,7 @@ Steps live in tunables: `ARROW_PAN`, `ARROW_ROTATE_STEP`, `SCALE_GENTLE_STEP`, `
 ## Browser controller
 
 Open `controller/controller.html` in any browser. It connects to `ws://127.0.0.1:8765`.
-Hotbar across the top: 1-8 keys for Select, Move, Rotate, Scale, Add, Dupe, Frame, Delete.
+Laid out like a game editor: tool rail on the left, gamepad cluster in the middle, inspector and actions on the right, hotbar at the bottom. Hotbar 1-8 keys for Select, Move, Rotate, Scale, Add, Dupe, Frame, Delete.
 Size control is a spring slider: drag away from center to grow or shrink at a rate, let go to stop.
 Arrows follow the scheme above. Pick an object from the dropdown, drag dimension and position
 sliders, drag the joystick or hold Shift+WASD to fly the viewport.
