@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Bridge Controller</title>
+<style>
+  :root{--bg:#14161a;--panel:#1e2128;--line:#2c313a;--txt:#e8eaf0;--mut:#8a90a0;--acc:#4f9cff;--acc2:#ff8a4f;--ok:#4fdc8a;--bad:#ff5f5f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.3 system-ui,sans-serif;padding:16px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+  h1{font-size:18px;margin:0 0 8px}
+  .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--bad)}
+  .dot.on{background:var(--ok)}
+  input,select{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:8px;font-size:15px}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:14px 10px;font-size:16px;font-weight:600;cursor:pointer;min-width:44px}
+  button:active{background:var(--acc);color:#000}
+  button.mode.on{background:var(--acc);color:#000;border-color:var(--acc)}
+  button.warn:active{background:var(--acc2)}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .card h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px}
+  .row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .row>button{flex:1}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .axis{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;margin-bottom:8px}
+  .axis label{width:22px;font-weight:700}
+  .x{color:#ff5f5f}.y{color:#8aff5f}.z{color:#5fa0ff}
+  .slider{display:grid;grid-template-columns:22px 1fr 70px;gap:8px;align-items:center;margin-bottom:8px}
+  .slider input[type=range]{width:100%}
+  .joy{width:180px;height:180px;border-radius:50%;background:#0f1114;border:2px solid var(--line);position:relative;margin:auto;touch-action:none}
+  .knob{width:60px;height:60px;border-radius:50%;background:var(--acc);position:absolute;left:60px;top:60px}
+  .readout{font-family:ui-monospace,monospace;font-size:13px;white-space:pre;color:var(--mut)}
+  .log{font-family:ui-monospace,monospace;font-size:12px;max-height:120px;overflow:auto;color:var(--mut)}
+  .log .err{color:var(--bad)}
+  kbd{background:#0f1114;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px}
+  small{color:var(--mut)}
+</style>
+</head>
+<body>
+<h1>Game Bridge</h1>
+<div class="top">
+  <span class="dot" id="dot"></span>
+  <input id="url" value="ws://127.0.0.1:8765" size="22">
+  <button id="connect">Connect</button>
+  <select id="objects"></select>
+  <button id="refresh">↻</button>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Mode <small>(W / E / R / Q)</small></h2>
+    <div class="row">
+      <button class="mode" data-mode="select">Select</button>
+      <button class="mode" data-mode="move">Move</button>
+      <button class="mode" data-mode="rotate">Rotate</button>
+      <button class="mode" data-mode="scale">Scale</button>
+    </div>
+    <h2>Step</h2>
+    <div class="slider"><span>m</span><input type="range" id="step" min="1" max="200" value="10"><span id="stepv">0.10</span></div>
+    <div class="slider"><span>°</span><input type="range" id="rstep" min="1" max="90" value="15"><span id="rstepv">15</span></div>
+    <div class="row">
+      <button id="snap">Snap: off</button>
+      <button id="frame">Frame</button>
+      <button id="undo">Undo</button>
+      <button id="redo">Redo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Nudge <small>(arrows + PgUp/PgDn)</small></h2>
+    <div class="axis"><label class="x">X</label><button data-move="dx:-1">−</button><button data-move="dx:1">+</button></div>
+    <div class="axis"><label class="y">Y</label><button data-move="dy:-1">−</button><button data-move="dy:1">+</button></div>
+    <div class="axis"><label class="z">Z</label><button data-move="dz:-1">−</button><button data-move="dz:1">+</button></div>
+    <h2>Rotate</h2>
+    <div class="axis"><label class="x">X</label><button data-rot="x:-1">↺</button><button data-rot="x:1">↻</button></div>
+    <div class="axis"><label class="y">Y</label><button data-rot="y:-1">↺</button><button data-rot="y:1">↻</button></div>
+    <div class="axis"><label class="z">Z</label><button data-rot="z:-1">↺</button><button data-rot="z:1">↻</button></div>
+    <div class="row">
+      <button data-scale="0.9">Smaller</button>
+      <button data-scale="1.1">Bigger</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dimensions (m)</h2>
+    <div class="slider"><span class="x">X</span><input type="range" id="dimx" min="0.05" max="10" step="0.05"><input id="dimxv" type="number" step="0.05"></div>
+    <div class="slider"><span class="y">Y</span><input type="range" id="dimy" min="0.05" max="10" step="0.05"><input id="dimyv" type="number" step="0.05"></div>
+    <div class="slider"><span class="z">Z</span><input type="range" id="dimz" min="0.05" max="10" step="0.05"><input id="dimzv" type="number" step="0.05"></div>
+    <h2>Position (m)</h2>
+    <div class="slider"><span class="x">X</span><input type="range" id="locx" min="-10" max="10" step="0.05"><input id="locxv" type="number" step="0.05"></div>
+    <div class="slider"><span class="y">Y</span><input type="range" id="locy" min="-10" max="10" step="0.05"><input id="locyv" type="number" step="0.05"></div>
+    <div class="slider"><span class="z">Z</span><input type="range" id="locz" min="-10" max="10" step="0.05"><input id="loczv" type="number" step="0.05"></div>
+  </div>
+
+  <div class="card">
+    <h2>Camera <small>(hold Shift+WASD/QE to fly, Shift+arrows to look, or drag the joystick)</small></h2>
+    <div class="joy" id="joy"><div class="knob" id="knob"></div></div>
+    <div class="row" style="margin-top:10px">
+      <button data-cam="pitch:1">Look ↑</button>
+      <button data-cam="pitch:-1">Look ↓</button>
+      <button data-cam="yaw:-1">Look ←</button>
+      <button data-cam="yaw:1">Look →</button>
+    </div>
+    <div class="row">
+      <button data-cam="up:1">Rise</button>
+      <button data-cam="up:-1">Sink</button>
+      <button data-cam="zoom:1">Zoom +</button>
+      <button data-cam="zoom:-1">Zoom −</button>
+    </div>
+    <div class="row">
+      <button data-view="TOP">Top</button><button data-view="FRONT">Front</button><button data-view="RIGHT">Right</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Add / Edit</h2>
+    <div class="row">
+      <select id="prim"><option>cube</option><option>sphere</option><option>cylinder</option><option>cone</option><option>plane</option><option>torus</option><option>monkey</option></select>
+      <button id="add">Add</button>
+      <button id="dup">Duplicate</button>
+      <button id="del" class="warn">Delete</button>
+    </div>
+    <h2>Readout</h2>
+    <div class="readout" id="readout">not connected</div>
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let ws = null, state = null, nextId = 1, keys = new Set(), camTimer = null;
+const stepM = () => $('#step').value / 100;
+const stepR = () => +$('#rstep').value;
+
+function log(msg, err){ const d=document.createElement('div'); if(err) d.className='err'; d.textContent=msg; const l=$('#log'); l.prepend(d); while(l.children.length>60) l.lastChild.remove(); }
+
+function connect(){
+  if (ws) { ws.close(); ws = null; }
+  try { ws = new WebSocket($('#url').value); } catch(e){ log('bad url '+e, true); return; }
+  ws.onopen = () => { $('#dot').classList.add('on'); log('connected'); send({cmd:'state'}); };
+  ws.onclose = () => { $('#dot').classList.remove('on'); log('disconnected'); };
+  ws.onerror = () => log('socket error (is Blender running with the add-on?)', true);
+  ws.onmessage = ev => {
+    const r = JSON.parse(ev.data);
+    if (!r.ok) log('ERR ' + r.cmd + ': ' + r.error, true);
+    const st = r.state || (r.cmd === 'state' ? r.result : null);
+    if (st) applyState(st);
+  };
+}
+function send(obj){ if (!ws || ws.readyState !== 1) { log('not connected', true); return; } obj.id = nextId++; ws.send(JSON.stringify(obj)); }
+
+function applyState(st){
+  state = st;
+  const sel = $('#objects'); const cur = st.active ? st.active.name : '';
+  sel.innerHTML = st.objects.map(n => `<option ${n===cur?'selected':''}>${n}</option>`).join('');
+  $('#snap').textContent = 'Snap: ' + (st.snap ? 'ON' : 'off');
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', st.tool && st.tool.endsWith('.' + (b.dataset.mode==='select'?'select_box':b.dataset.mode))));
+  if (st.active) {
+    const a = st.active;
+    $('#readout').textContent = `${a.name}  (${a.type})\nloc  ${a.location.map(v=>v.toFixed(2)).join('  ')}\nrot  ${a.rotation_deg.map(v=>v.toFixed(1)).join('  ')}\ndim  ${a.dimensions.map(v=>v.toFixed(2)).join('  ')}`;
+    'xyz'.split('').forEach((k,i)=>{ if(!dragging){ $('#dim'+k).value = a.dimensions[i]; $('#dim'+k+'v').value = a.dimensions[i].toFixed(2); $('#loc'+k).value = a.location[i]; $('#loc'+k+'v').value = a.location[i].toFixed(2);} });
+  } else $('#readout').textContent = 'nothing selected';
+}
+
+// ---- wiring ----
+$('#connect').onclick = connect;
+$('#refresh').onclick = () => send({cmd:'state'});
+$('#objects').onchange = e => send({cmd:'select', name:e.target.value});
+$('#step').oninput = () => $('#stepv').textContent = stepM().toFixed(2);
+$('#rstep').oninput = () => $('#rstepv').textContent = stepR();
+$('#snap').onclick = () => send({cmd:'snap'});
+$('#frame').onclick = () => send({cmd:'frame'});
+$('#undo').onclick = () => send({cmd:'undo'});
+$('#redo').onclick = () => send({cmd:'redo'});
+$('#add').onclick = () => send({cmd:'add', type:$('#prim').value});
+$('#dup').onclick = () => send({cmd:'duplicate'});
+$('#del').onclick = () => send({cmd:'delete'});
+document.querySelectorAll('.mode').forEach(b => b.onclick = () => send({cmd:'set_mode', mode:b.dataset.mode}));
+document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => { const [k,s]=b.dataset.move.split(':'); send({cmd:'move', [k]: s*stepM()}); });
+document.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => { const [ax,s]=b.dataset.rot.split(':'); send({cmd:'rotate', axis:ax, degrees:s*stepR()}); });
+document.querySelectorAll('[data-scale]').forEach(b => b.onclick = () => send({cmd:'scale', factor:+b.dataset.scale}));
+document.querySelectorAll('[data-cam]').forEach(b => { const [k,s]=b.dataset.cam.split(':'); const go=()=>send({cmd:'camera',[k]:+s}); b.onpointerdown=()=>{go(); b._t=setInterval(go,60);} ; b.onpointerup=b.onpointerleave=()=>clearInterval(b._t); });
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => send({cmd:'view_axis', axis:b.dataset.view}));
+
+let dragging = false, dragTimer = null;
+function wireSlider(prefix, cmd){
+  'xyz'.split('').forEach(k => {
+    const r = $('#'+prefix+k), n = $('#'+prefix+k+'v');
+    const fire = v => { n.value = (+v).toFixed(2); r.value = v; clearTimeout(dragTimer); dragTimer = setTimeout(()=>send({cmd, [k]:+v}), 30); };
+    r.oninput = () => { dragging = true; fire(r.value); };
+    r.onchange = () => { dragging = false; };
+    n.onchange = () => fire(n.value);
+  });
+}
+wireSlider('dim', 'set_dimensions');
+wireSlider('loc', 'set_location');
+
+// ---- joystick ----
+const joy = $('#joy'), knob = $('#knob'); let joyVec = [0,0], joyActive = false;
+function setKnob(x,y){ knob.style.left = (60 + x*60) + 'px'; knob.style.top = (60 + y*60) + 'px'; }
+joy.onpointerdown = e => { joyActive = true; joy.setPointerCapture(e.pointerId); joyMove(e); };
+joy.onpointermove = e => joyActive && joyMove(e);
+joy.onpointerup = joy.onpointercancel = () => { joyActive = false; joyVec=[0,0]; setKnob(0,0); };
+function joyMove(e){ const r = joy.getBoundingClientRect(); let x=(e.clientX-r.left-90)/60, y=(e.clientY-r.top-90)/60; const m=Math.hypot(x,y); if(m>1){x/=m;y/=m;} joyVec=[x,y]; setKnob(x,y); }
+
+// ---- keyboard: WASD camera, arrows nudge, WER modes ----
+const camKeys = {w:['forward',1], s:['forward',-1], a:['right',-1], d:['right',1], q:['up',-1], e:['up',1], arrowleft:['yaw',-1], arrowright:['yaw',1], arrowup:['pitch',1], arrowdown:['pitch',-1]};
+document.addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
+  const k = ev.key.toLowerCase();
+  if (ev.shiftKey && k in camKeys) { keys.add(k); ev.preventDefault(); return; }
+  if (k === 'w') return send({cmd:'set_mode', mode:'move'});
+  if (k === 'e') return send({cmd:'set_mode', mode:'rotate'});
+  if (k === 'r') return send({cmd:'set_mode', mode:'scale'});
+  if (k === 'q') return send({cmd:'set_mode', mode:'select'});
+  if (k === 'f') return send({cmd:'frame'});
+  if (k === 'z' && (ev.ctrlKey||ev.metaKey)) return send({cmd: ev.shiftKey ? 'redo' : 'undo'});
+  const s = stepM();
+  const nudge = {arrowleft:{dx:-s}, arrowright:{dx:s}, arrowup:{dy:s}, arrowdown:{dy:-s}, pageup:{dz:s}, pagedown:{dz:-s}}[k];
+  if (nudge) { ev.preventDefault(); return send({cmd:'move', ...nudge}); }
+  if (k === 'delete' || k === 'backspace') return send({cmd:'delete'});
+});
+document.addEventListener('keyup', ev => keys.delete(ev.key.toLowerCase()));
+setInterval(() => {
+  if (!ws || ws.readyState !== 1) return;
+  const msg = {cmd:'camera'}; let any = false;
+  keys.forEach(k => { const [f,v] = camKeys[k]; msg[f] = (msg[f]||0) + v; any = true; });
+  if (joyActive && (joyVec[0]||joyVec[1])) { msg.right = (msg.right||0) + joyVec[0]; msg.forward = (msg.forward||0) - joyVec[1]; any = true; }
+  if (any) send(msg);
+}, 50);
+
+$('#step').oninput(); $('#rstep').oninput(); connect();
+</script>
+</body>
+</html>
